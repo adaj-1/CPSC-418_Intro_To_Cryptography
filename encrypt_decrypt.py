@@ -3,6 +3,8 @@
 ##### IMPORTS
 
 import argparse
+import os
+import hashlib
 
 from collections.abc import Callable
 
@@ -40,7 +42,6 @@ def block_idx( block_size:int, offset:int = 0 ) -> Iterator[bytes]:
         yield ( (idx + offset) & mask ).to_bytes( block_size, 'big' )
         idx += 1
 
-
 def generate_iv( length:int ) -> bytes:
     """Generate an initialization vector for encryption. Must be drawn from a
        cryptographically-secure pseudo-random number generator.
@@ -55,7 +56,7 @@ def generate_iv( length:int ) -> bytes:
        """
     assert type(length) is int
 
-# delete this comment and insert your code here
+    return os.urandom(length)
 
 class Hasher:
     """Encapsulates the hash function used for encryption. This is written as a
@@ -80,7 +81,9 @@ class Hasher:
 # Uncomment the following line of code and substitute the hash's ideal input 
 #  block size. IMPORTANT: this is almost never the same size as the digest size!
 
-#        self.block_size = ...
+        self.block_size = 64
+        
+        self.block_bytes = 32  #TODO check this
 
     def hash( self, data:bytes ) -> bytes:
         """Hash an arbitrary number of bytes into a 32-byte output. Hopefully this is
@@ -96,7 +99,9 @@ class Hasher:
            """
         assert type(data) is bytes
 
-# delete this comment and insert your code here
+        h = hashlib.sha256()
+        h.update(data)
+        return h.digest()       
 
 def xor( a:bytes, b:bytes ) -> bytes:
     """Bit-wise exclusive-or two byte sequences. If the two bytes objects differ in
@@ -113,7 +118,13 @@ def xor( a:bytes, b:bytes ) -> bytes:
     assert type(a) is bytes
     assert type(b) is bytes
 
-# delete this comment and insert your code here
+    if  len(a) > len(b):
+        b = b +  b'\x00' * (len(a) - len(b))
+    
+    elif len(a) < len(b):
+        a = a + b'\x00' * (len(b) - len(a))
+        
+    return bytes(x ^ y  for x, y in zip (a,b))
 
 def HMAC( data:bytes, key:bytes, hasher:Hasher ) -> bytes:
     """Perform HMAC with the given hash function. Be sure to read the HMAC spec carefully!
@@ -131,7 +142,26 @@ def HMAC( data:bytes, key:bytes, hasher:Hasher ) -> bytes:
     assert type(data) is bytes
     assert type(key) is bytes
 
-# delete this comment and insert your code here
+    if len(key) > hasher.block_size:
+        L = hasher.hash(key)
+        padded_key = L + b'\x00' * (hasher.block_size - len(L))
+    elif len(key) < hasher.block_size:
+        padded_key = key + b'\x00' * (hasher.block_size - len(key))
+    elif len(key) == hasher.block_size: 
+        padded_key = key
+
+    ipad = b'\x36' * hasher.block_size
+    opad = b'\x5c' * hasher.block_size
+
+    ipad_xor = xor(padded_key, ipad)
+    inner = ipad_xor + data
+    inner_hash = hasher.hash(inner)
+    
+    opad_xor = xor(padded_key, opad)
+    outer = opad_xor + inner_hash
+    outer_hash = hasher.hash(outer)
+
+    return outer_hash
 
 def pad( data:bytes, digest_size:int ) -> bytes:
     """Pad out the given bytes object with PKCS7 so it fits within the given 
@@ -150,7 +180,17 @@ def pad( data:bytes, digest_size:int ) -> bytes:
     assert type(digest_size) is int
     assert (digest_size > 1) and (digest_size < 256)
 
-# delete this comment and insert your code here
+    padding = (digest_size - len(data)) % digest_size
+
+    if padding == 0:
+        padding = digest_size
+
+    pkcs7 = (chr(padding) * padding).encode() 
+
+    padded_value = data + pkcs7
+
+    return padded_value
+    #TODO citation https://laconicwolf.com/2018/12/02/cryptopals-challenge-9-implement-pkcs7-padding-in-python/
 
 def unpad( data:bytes ) -> Optional[bytes]:
     """Remove PKCS7 from the given bytes object.
@@ -166,7 +206,18 @@ def unpad( data:bytes ) -> Optional[bytes]:
        """
     assert type(data) is bytes
 
-# delete this comment and insert your code here
+    data_array = bytearray(data)
+    padding_value = data_array[-1:]
+    padding_size = int.from_bytes(padding_value, "big")
+
+    while padding_size > 0:
+        if data_array[-1:] != padding_value:
+            return None
+        else:
+            del data_array[-1:]
+            padding_size -= 1
+
+    return bytes(data_array)
 
 def encrypt( iv:bytes, data:bytes, key:bytes, hasher:Hasher, \
         block_ids:Callable[[int], Iterator[bytes]] ) -> bytes:
@@ -193,9 +244,18 @@ def encrypt( iv:bytes, data:bytes, key:bytes, hasher:Hasher, \
     assert type(data) is bytes
     assert (len(data) % hasher.digest_size) == 0
     assert len(iv) == hasher.block_size
+    
+    digest_size = hasher.digest_size
+    generator = block_ids(digest_size)
+    plaintext_block = [data[i:i+digest_size] for i in range (0, len(data), digest_size)]
 
-# delete this comment and insert your code here
+    encrypted_data = b''
 
+    for each in plaintext_block:
+        next_block_id = next(generator)
+        block_ID_IV = xor(HMAC(xor(next_block_id, iv), key, hasher), each)
+        encrypted_data += block_ID_IV  
+    return encrypted_data       
 
 def pad_encrypt_then_HMAC( plaintext:bytes, key_cypher:bytes, key_HMAC:bytes, hasher:Hasher, \
         block_ids:Callable[[int], Iterator[bytes]] ) -> bytes:
@@ -220,7 +280,13 @@ def pad_encrypt_then_HMAC( plaintext:bytes, key_cypher:bytes, key_HMAC:bytes, ha
     assert type(key_cypher) is bytes
     assert type(key_HMAC) is bytes
 
-# delete this comment and insert your code here
+    iv = generate_iv(hasher.block_size)
+    data = pad(plaintext, hasher.digest_size)
+    encrypted_data = encrypt(iv, data, key_cypher, hasher, block_ids)
+    iv_ciphertext = iv + encrypted_data
+    pad_then_HMAC = iv_ciphertext + HMAC(iv_ciphertext, key_HMAC, hasher)
+    return pad_then_HMAC
+
 
 def decrypt_and_verify( cyphertext: bytes, key_cypher: bytes, key_HMAC:bytes, hasher:Hasher, \
         block_ids:Callable[[int], Iterator[bytes]] ) -> Optional[bytes]:
@@ -247,7 +313,7 @@ def decrypt_and_verify( cyphertext: bytes, key_cypher: bytes, key_HMAC:bytes, ha
     assert type(key_cypher) is bytes
     assert type(key_HMAC) is bytes
 
-# delete this comment and insert your code here
+
 
 
 ##### MAIN
