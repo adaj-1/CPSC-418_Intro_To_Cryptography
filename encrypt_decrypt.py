@@ -246,16 +246,15 @@ def encrypt( iv:bytes, data:bytes, key:bytes, hasher:Hasher, \
     assert len(iv) == hasher.block_size
     
     digest_size = hasher.digest_size
-    generator = block_ids(digest_size)
+    generator = block_ids(hasher.block_size)
     plaintext_block = [data[i:i+digest_size] for i in range (0, len(data), digest_size)]
-
     encrypted_data = b''
 
     for each in plaintext_block:
         next_block_id = next(generator)
         block_ID_IV = xor(HMAC(xor(next_block_id, iv), key, hasher), each)
         encrypted_data += block_ID_IV  
-    return encrypted_data       
+    return encrypted_data    
 
 def pad_encrypt_then_HMAC( plaintext:bytes, key_cypher:bytes, key_HMAC:bytes, hasher:Hasher, \
         block_ids:Callable[[int], Iterator[bytes]] ) -> bytes:
