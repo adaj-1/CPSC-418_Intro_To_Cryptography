@@ -8,7 +8,9 @@ from threading import Thread
 from time import sleep
 from typing import Any, Callable, Iterator, Mapping, Optional, Union # Callable works from here?
 
-# Insert your imports here
+import socket
+import random
+import math
 
 ##### METHODS
 
@@ -91,8 +93,22 @@ def create_socket( ip:str, port:int, listen:bool=False ) -> Optional[socket.sock
     
     assert type(ip) == str
     assert type(port) == int
-
-    # delete this comment and insert your code here
+    
+    if listen:
+        try:
+            sock = socket.socket()                                        # receiving
+            sock.bind((ip,port))
+            return sock
+        except:
+            return None
+    else:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)      # connecting
+            sock.connect((ip,port))
+            return sock
+        except:
+            return None
+    
 
 def send( sock:socket.socket, data:bytes ) -> int:
     """Send the provided data across the given socket. This is a
@@ -115,8 +131,19 @@ def send( sock:socket.socket, data:bytes ) -> int:
     assert type(sock) == socket.socket
     assert type(data) == bytes
 
-    # delete this comment and insert your code here
+   # buffer = sock.sendall(data)
+   #  bytes_sent = len(buffer)
 
+   #  if bytes_sent < len(data):
+   #      conn, addr = sock.accept()
+   #      (ip, port) = sock.getnameinfo(addr)
+   #     create_socket (ip, port, True)
+   #      send(sock, data)
+   #  else:
+   #      return bytes_sent
+   
+
+   
 def receive( sock:socket.socket, length:int ) -> bytes:
     """Receive the provided data across the given socket. This is a
        'reliable' receive, in the sense that the function never returns
@@ -139,6 +166,63 @@ def receive( sock:socket.socket, length:int ) -> bytes:
 
     # delete this comment and insert your code here
 
+def is_prime(num:int):
+    if num == 2 or num == 3:
+        return True
+
+    if num % 2 == 0:
+        return False
+    
+    for n in range (3, int(pow(num,1/2)) + 1, 2):
+        if num % n == 0:
+            return False
+    return True
+
+def fermat_primality_test(n:int, k:int) -> bool:
+    if n < 3:
+        return False
+
+    for i in range (k):
+        a = random.randint(2, n - 2)
+        if a**(n-1) % n != 1:
+            return False   
+    return True
+
+def miller_rabin_primailty_test(n:int, k:int):
+    if n == 2 or n == 3:
+        return True
+
+    if n <= 1 or n % 2 == 0:
+        return False
+
+    r = 0
+    d = n - 1
+    while d & 1 == 0:
+        r += 1
+        d //= 2
+
+    for i in range(k):
+        a = random.randrange(2, n - 1)
+        x = pow(a, d, n)
+        if x == 1 or x == n - 1:
+            continue
+
+        for j in range(r - 1):
+            x = pow(x, 2, n)
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
+    
+def find_prime(bits:int) -> int:
+    random_int = 4
+    
+    while not miller_rabin_primailty_test(random_int, 40):
+        random_int = random.getrandbits(bits - 1)
+        random_int |= (1 << bits - 2) | 1          # mask MSB and LSB to 1
+    return random_int
+
 def safe_prime( bits:int=512 ) -> int:
     """Generate a safe prime that is at least 'bits' bits long. The result
        should be greater than 1 << (bits-1).
@@ -150,13 +234,20 @@ def safe_prime( bits:int=512 ) -> int:
 
     RETURNS
     =======
-    An interger matching the spec.
+    An integer matching the spec.
     """
 
     assert bits > 1
+    
+    q = find_prime(bits)
+    N = (2 * q) + 1
 
-    # delete this comment and insert your code here
+    while not miller_rabin_primailty_test(N, 40):
+        q = find_prime(bits)
+        N = (2 * q) + 1
 
+    return N
+    
 def prim_root( N:int ) -> int:
     """Find a primitive root for N, a large safe prime. Hint: it isn't
        always 2.
@@ -170,8 +261,12 @@ def prim_root( N:int ) -> int:
     An integer representing the primitive root. Must be a positive
        number greater than 1.
     """
+    # g is a primitive root of N iff g**((N-1) / 2) does not equal 1 (mod N) for every
+    # prime factor q of N-1
 
-    # delete this comment and insert your code here
+
+
+
 
 
 def calc_x( s:bytes, pw:str ) -> int:
@@ -334,7 +429,7 @@ def server_prepare() -> tuple[int,int,int]:
     =======
     A tuple of the form (g, N, k), containing those values as integers.
     """
-
+    return (1,2,3)
     # delete this comment and insert your code here
 
 def client_register( ip:str, port:int, username:str, pw:str, s:bytes ) -> \
@@ -515,7 +610,9 @@ if __name__ == '__main__':
         if args.verbose:
             print( f"Server: Asked to start on IP {IP} and port {port}.", flush=True )
             print( f"Server: Generating N and g, this will take some time.", flush=True )
+        
         g, N, k = server_prepare() 
+        
         if args.verbose:
             print( f"Server: Finished generating N and g.", flush=True )
 
@@ -698,3 +795,4 @@ if __name__ == '__main__':
             if args.verbose:
                 print( f"Program: Server terminated.", flush=True )
             server_proc = None
+
