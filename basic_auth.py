@@ -10,7 +10,8 @@ from typing import Any, Callable, Iterator, Mapping, Optional, Union # Callable 
 
 import socket
 import random
-import math
+import os
+import hashlib
 
 ##### METHODS
 
@@ -130,20 +131,19 @@ def send( sock:socket.socket, data:bytes ) -> int:
     
     assert type(sock) == socket.socket
     assert type(data) == bytes
+    
 
-   # buffer = sock.sendall(data)
-   #  bytes_sent = len(buffer)
+    buffer = sock.send(data)
+    while buffer < len(data):
+        remaining_data = data[:buffer] + data[len(data):]
+        buffer = sock.send(remaining_data)
+  
+    if sock.accept != 0:
+        return buffer
+    else:
+        sock.close()
 
-   #  if bytes_sent < len(data):
-   #      conn, addr = sock.accept()
-   #      (ip, port) = sock.getnameinfo(addr)
-   #     create_socket (ip, port, True)
-   #      send(sock, data)
-   #  else:
-   #      return bytes_sent
-   
 
-   
 def receive( sock:socket.socket, length:int ) -> bytes:
     """Receive the provided data across the given socket. This is a
        'reliable' receive, in the sense that the function never returns
@@ -164,7 +164,18 @@ def receive( sock:socket.socket, length:int ) -> bytes:
     assert type(sock) == socket.socket
     assert length > 0
 
-    # delete this comment and insert your code here
+    try:
+        buffer = sock.recv(length)
+        bytes_recieved = len(buffer)
+
+        if bytes_recieved < length:
+            (conn,addr) = sock.accept()
+            conn.recv(length - buffer)
+        else:
+            return buffer
+    except:
+        sock.close()
+        return bytearray()
 
 def is_prime(num:int):
     if num == 2 or num == 3:
@@ -176,16 +187,6 @@ def is_prime(num:int):
     for n in range (3, int(pow(num,1/2)) + 1, 2):
         if num % n == 0:
             return False
-    return True
-
-def fermat_primality_test(n:int, k:int) -> bool:
-    if n < 3:
-        return False
-
-    for i in range (k):
-        a = random.randint(2, n - 2)
-        if a**(n-1) % n != 1:
-            return False   
     return True
 
 def miller_rabin_primailty_test(n:int, k:int):
@@ -247,7 +248,7 @@ def safe_prime( bits:int=512 ) -> int:
         N = (2 * q) + 1
 
     return N
-    
+
 def prim_root( N:int ) -> int:
     """Find a primitive root for N, a large safe prime. Hint: it isn't
        always 2.
@@ -263,11 +264,6 @@ def prim_root( N:int ) -> int:
     """
     # g is a primitive root of N iff g**((N-1) / 2) does not equal 1 (mod N) for every
     # prime factor q of N-1
-
-
-
-
-
 
 def calc_x( s:bytes, pw:str ) -> int:
     """Calculate the value of x, according to the assignment.
@@ -285,7 +281,10 @@ def calc_x( s:bytes, pw:str ) -> int:
     assert type(pw) == str
     assert type(s) == bytes
 
-    # delete this comment and insert your code here
+    password = bytes(pw,'utf-8')
+    h = hashlib.blake2b(s + password, digest_size = 32).digest()
+    x = bytes_to_int(h)
+    return x
 
 def calc_A( g:Union[int,bytes], N:Union[int,bytes], a:Union[int,bytes] ) -> int:
     """Calculate the value of A, according to the assignment.
@@ -300,8 +299,15 @@ def calc_A( g:Union[int,bytes], N:Union[int,bytes], a:Union[int,bytes] ) -> int:
     =======
     An integer representing A.
     """
+    if type(g) is bytes:
+        g = bytes_to_int(g)
+    if type(N) is bytes:
+        N = bytes_to_int(N)
+    if type(a) is bytes:
+        a = bytes_to_int(a)
 
-    # delete this comment and insert your code here
+    A = pow(g,a,N)  
+    return A
 
 def calc_B( g:Union[int,bytes], N:Union[int,bytes], b:Union[int,bytes], \
         k:Union[int,bytes], v:Union[int,bytes] ) -> int:
@@ -318,9 +324,20 @@ def calc_B( g:Union[int,bytes], N:Union[int,bytes], b:Union[int,bytes], \
     RETURNS
     =======
     An integer representing B.
-    """
+    """ 
+    #if type(g) is bytes:
+    #    g = bytes_to_int(g)
+    #if type(N) is bytes:
+    #    N = bytes_to_int(N)
+    #if type(b) is bytes:
+    #    b = bytes_to_int(b)
+    #if type(k) is bytes:
+    #    k = bytes_to_int(k)
+    #if type(v) is bytes:
+    #    v = bytes_to_int(v)
 
-    # delete this comment and insert your code here
+    #B = k*v + pow(g,b,N)
+    #return B
 
 def calc_u( A:Union[int,bytes], B:Union[int,bytes] ) -> int:
     """Calculate the value of u, according to the assignment.
@@ -334,8 +351,14 @@ def calc_u( A:Union[int,bytes], B:Union[int,bytes] ) -> int:
     =======
     An integer representing u.
     """
+    if type(A) is int:
+        A = int_to_bytes(A, 4)
+    if type(B) is int:
+        B = int_to_bytes(B, 4)
 
-    # delete this comment and insert your code here
+    u = hashlib.blake2b(A + B, digest_size = 32).digest
+    u = bytes_to_int(u)
+    return u
 
 def calc_K_client( N:Union[int,bytes], B:Union[int,bytes], \
         k:Union[int,bytes], v:Union[int,bytes], a:Union[int,bytes], \
@@ -356,8 +379,23 @@ def calc_K_client( N:Union[int,bytes], B:Union[int,bytes], \
     =======
     An integer representing K_client.
     """
+    #if isinstance(N, bytes):
+    #    bytes_to_int(N)
+    #if isinstance(B, bytes):
+    #    bytes_to_int(B)
+    #if isinstance(k, bytes):
+    #    bytes_to_int(k)
+    #if isinstance(v, bytes):
+    #    bytes_to_int(v)
+    #if isinstance(a, bytes):
+    #    bytes_to_int(a)
+    #if isinstance(u, bytes):
+    #    bytes_to_int(u)
+    #if isinstance(x, bytes):
+    #    bytes_to_int(x)
 
-    # delete this comment and insert your code here
+    #K_client = pow(B - (k*v), a + (u*x), N)
+    #return K_client
 
 def calc_K_server( N:Union[int,bytes], A:Union[int,bytes], \
         b:Union[int,bytes], v:Union[int,bytes], u:Union[int,bytes] ) -> int:
@@ -375,8 +413,19 @@ def calc_K_server( N:Union[int,bytes], A:Union[int,bytes], \
     =======
     An integer representing K_server.
     """
+    #if type(N) is bytes:
+    #    bytes_to_int(N)
+    #if type(A) is bytes:
+    #    bytes_to_int(A)
+    #if type(b) is bytes:
+    #    bytes_to_int(b)
+    #if type(v) is bytes:
+    #    bytes_to_int(v)
+    #if type(u) is bytes:
+    #    bytes_to_int(u)
 
-    # delete this comment and insert your code here
+    #K_server = pow((A * (v**u))**b, N)
+    #return K_server
 
 def find_Y( K_client:Union[int,bytes], bits:Union[int,bytes] ) -> bytes:
     """Find a bytes object Y such that H(K_client+Y) starts with bits zero bits.
@@ -418,8 +467,8 @@ def client_prepare() -> bytes:
     =======
     A bytes object containing a randomly-generated salt, 16 bytes long.
     """
-
-    # delete this comment and insert your code here
+    salt = os.urandom(16)
+    return salt
 
 def server_prepare() -> tuple[int,int,int]:
     """Do the preparations necessary to accept clients. Generate N and g,
@@ -429,8 +478,12 @@ def server_prepare() -> tuple[int,int,int]:
     =======
     A tuple of the form (g, N, k), containing those values as integers.
     """
-    return (1,2,3)
-    # delete this comment and insert your code here
+    N = safe_prime()
+    g = prim_root(N)
+
+    k = hashlib.blake2b(N + g, digest_size = 32).digest
+    k = bytes_to_int(k)
+    return (g,N,k)
 
 def client_register( ip:str, port:int, username:str, pw:str, s:bytes ) -> \
         Optional[tuple[int,int,int]]:
@@ -451,7 +504,7 @@ def client_register( ip:str, port:int, username:str, pw:str, s:bytes ) -> \
        On failure, return None.
     """
 
-    # delete this comment and insert your code here
+    create_socket(ip,port)
 
 def server_register( sock:socket.socket, g:Union[int,bytes], N:Union[int,bytes], \
         database:dict ) -> Optional[dict]:
