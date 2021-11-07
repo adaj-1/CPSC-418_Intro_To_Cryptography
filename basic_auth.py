@@ -12,6 +12,7 @@ import socket
 import random
 import os
 import hashlib
+import time
 
 ##### METHODS
 
@@ -132,16 +133,18 @@ def send( sock:socket.socket, data:bytes ) -> int:
     assert type(sock) == socket.socket
     assert type(data) == bytes
     
-
-    buffer = sock.send(data)
-    while buffer < len(data):
-        remaining_data = data[:buffer] + data[len(data):]
-        buffer = sock.send(remaining_data)
+    try:
+        buffer = sock.send(data)
+        while buffer < len(data):
+            remaining_data = data[:buffer] + data[len(data):]
+            buffer = sock.send(remaining_data)
   
-    if sock.accept != 0:
-        return buffer
-    else:
-        sock.close()
+        if sock.accept != 0:
+            return buffer
+        else:
+            sock.close()
+    except:
+        return 0
 
 
 def receive( sock:socket.socket, length:int ) -> bytes:
@@ -166,13 +169,13 @@ def receive( sock:socket.socket, length:int ) -> bytes:
 
     try:
         buffer = sock.recv(length)
-        bytes_recieved = len(buffer)
+        bytes_received = len(buffer)
 
-        if bytes_recieved < length:
-            (conn,addr) = sock.accept()
-            conn.recv(length - buffer)
-        else:
-            return buffer
+        if bytes_received < length:
+            remaining_data = length - bytes_received
+            buffer = buffer + (sock.recv(remaining_data))
+
+        return buffer
     except:
         sock.close()
         return bytearray()
@@ -188,6 +191,11 @@ def is_prime(num:int):
         if num % n == 0:
             return False
     return True
+
+# referenced the following three links
+# https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Complexity
+# https://gist.github.com/Ayrx/5884790
+# https://medium.com/@prudywsh/how-to-generate-big-prime-numbers-miller-rabin-49e6e6af32fb
 
 def miller_rabin_primailty_test(n:int, k:int):
     if n == 2 or n == 3:
@@ -264,7 +272,14 @@ def prim_root( N:int ) -> int:
     """
     # g is a primitive root of N iff g**((N-1) / 2) does not equal 1 (mod N) for every
     # prime factor q of N-1
-
+    
+    phi = N - 1
+    q = phi // 2
+    
+    for g in range(2,phi):
+        if pow(g,q,N) != 1:
+            return g
+    
 def calc_x( s:bytes, pw:str ) -> int:
     """Calculate the value of x, according to the assignment.
 
@@ -299,14 +314,14 @@ def calc_A( g:Union[int,bytes], N:Union[int,bytes], a:Union[int,bytes] ) -> int:
     =======
     An integer representing A.
     """
-    if type(g) is bytes:
+    if isinstance(g, bytes):
         g = bytes_to_int(g)
-    if type(N) is bytes:
+    if isinstance(N, bytes):
         N = bytes_to_int(N)
-    if type(a) is bytes:
+    if isinstance(a, bytes):
         a = bytes_to_int(a)
 
-    A = pow(g,a,N)  
+    A = int(pow(g,a,N))  
     return A
 
 def calc_B( g:Union[int,bytes], N:Union[int,bytes], b:Union[int,bytes], \
@@ -325,19 +340,19 @@ def calc_B( g:Union[int,bytes], N:Union[int,bytes], b:Union[int,bytes], \
     =======
     An integer representing B.
     """ 
-    #if type(g) is bytes:
-    #    g = bytes_to_int(g)
-    #if type(N) is bytes:
-    #    N = bytes_to_int(N)
-    #if type(b) is bytes:
-    #    b = bytes_to_int(b)
-    #if type(k) is bytes:
-    #    k = bytes_to_int(k)
-    #if type(v) is bytes:
-    #    v = bytes_to_int(v)
+    if isinstance(g, bytes):
+        g = bytes_to_int(g)
+    if isinstance(N, bytes):
+        N = bytes_to_int(N)
+    if isinstance(b, bytes):
+        b = bytes_to_int(b)
+    if isinstance(k, bytes):
+        k = bytes_to_int(k)
+    if isinstance(v, bytes):
+        v = bytes_to_int(v)
 
-    #B = k*v + pow(g,b,N)
-    #return B
+    B = (k*v + pow(g, b, N)) % N
+    return B
 
 def calc_u( A:Union[int,bytes], B:Union[int,bytes] ) -> int:
     """Calculate the value of u, according to the assignment.
@@ -351,12 +366,13 @@ def calc_u( A:Union[int,bytes], B:Union[int,bytes] ) -> int:
     =======
     An integer representing u.
     """
-    if type(A) is int:
-        A = int_to_bytes(A, 4)
-    if type(B) is int:
-        B = int_to_bytes(B, 4)
 
-    u = hashlib.blake2b(A + B, digest_size = 32).digest
+    if isinstance(A, int):
+        A = int_to_bytes(A, 64)
+    if isinstance(B, int):
+        B = int_to_bytes(B, 64)
+    
+    u = hashlib.blake2b(A+B, digest_size = 32).digest()
     u = bytes_to_int(u)
     return u
 
@@ -379,23 +395,23 @@ def calc_K_client( N:Union[int,bytes], B:Union[int,bytes], \
     =======
     An integer representing K_client.
     """
-    #if isinstance(N, bytes):
-    #    bytes_to_int(N)
-    #if isinstance(B, bytes):
-    #    bytes_to_int(B)
-    #if isinstance(k, bytes):
-    #    bytes_to_int(k)
-    #if isinstance(v, bytes):
-    #    bytes_to_int(v)
-    #if isinstance(a, bytes):
-    #    bytes_to_int(a)
-    #if isinstance(u, bytes):
-    #    bytes_to_int(u)
-    #if isinstance(x, bytes):
-    #    bytes_to_int(x)
+    if isinstance(N, bytes):
+        N = bytes_to_int(N)
+    if isinstance(B, bytes):
+        B = bytes_to_int(B)
+    if isinstance(k, bytes):
+        k = bytes_to_int(k)
+    if isinstance(v, bytes):
+        v = bytes_to_int(v)
+    if isinstance(a, bytes):
+        a = bytes_to_int(a)
+    if isinstance(u, bytes):
+        u = bytes_to_int(u)
+    if isinstance(x, bytes):
+        x = bytes_to_int(x)
 
-    #K_client = pow(B - (k*v), a + (u*x), N)
-    #return K_client
+    K_client = pow(B - (k*v), a + (u*x), N)
+    return K_client
 
 def calc_K_server( N:Union[int,bytes], A:Union[int,bytes], \
         b:Union[int,bytes], v:Union[int,bytes], u:Union[int,bytes] ) -> int:
@@ -412,20 +428,21 @@ def calc_K_server( N:Union[int,bytes], A:Union[int,bytes], \
     RETURNS
     =======
     An integer representing K_server.
-    """
-    #if type(N) is bytes:
-    #    bytes_to_int(N)
-    #if type(A) is bytes:
-    #    bytes_to_int(A)
-    #if type(b) is bytes:
-    #    bytes_to_int(b)
-    #if type(v) is bytes:
-    #    bytes_to_int(v)
-    #if type(u) is bytes:
-    #    bytes_to_int(u)
+   """
 
-    #K_server = pow((A * (v**u))**b, N)
-    #return K_server
+    if isinstance(N, bytes):
+        N = bytes_to_int(N)
+    if isinstance(A, bytes):
+        A =bytes_to_int(A)
+    if isinstance(b, bytes):
+        b =bytes_to_int(b)
+    if isinstance(v, bytes):
+        v =bytes_to_int(v)
+    if isinstance(u, bytes):
+        u = bytes_to_int(u)
+
+    K_server = (pow(A, b, N) * pow(v, u*b, N)) % N
+    return K_server
 
 def find_Y( K_client:Union[int,bytes], bits:Union[int,bytes] ) -> bytes:
     """Find a bytes object Y such that H(K_client+Y) starts with bits zero bits.
@@ -441,8 +458,6 @@ def find_Y( K_client:Union[int,bytes], bits:Union[int,bytes] ) -> bytes:
     A bytes object representing Y.
     """
 
-    # delete this comment and insert your code here
-
 def calc_M1( A:Union[int,bytes], K_server:Union[int,bytes], Y:Union[int,bytes] ) -> bytes:
     """Calculate the value of M1, according to the assignment.
 
@@ -457,7 +472,15 @@ def calc_M1( A:Union[int,bytes], K_server:Union[int,bytes], Y:Union[int,bytes] )
     A bytes object representing M2.
     """
 
-    # delete this comment and insert your code here
+    if isinstance(A, int):
+        A = int_to_bytes(A, 64)
+    if isinstance(K_server, int):
+        K_server = int_to_bytes(K_server, 64)
+    if isinstance(Y, int):
+        Y = int_to_bytes(Y, 64)
+
+    M1 = hashlib.blake2b(K_server + A + Y, digest_size= 32).digest()
+    return M1
 
 def client_prepare() -> bytes:
     """Do the preparations necessary to connect to the server. Basically,
@@ -481,8 +504,12 @@ def server_prepare() -> tuple[int,int,int]:
     N = safe_prime()
     g = prim_root(N)
 
-    k = hashlib.blake2b(N + g, digest_size = 32).digest
+    N_bytes = int_to_bytes(N, 64)
+    g_bytes = int_to_bytes(g, 64)
+
+    k = hashlib.blake2b( g_bytes + N_bytes , digest_size = 32).digest()
     k = bytes_to_int(k)
+
     return (g,N,k)
 
 def client_register( ip:str, port:int, username:str, pw:str, s:bytes ) -> \
@@ -503,8 +530,38 @@ def client_register( ip:str, port:int, username:str, pw:str, s:bytes ) -> \
     If successful, return a tuple of the form (g, N, v), all integers.
        On failure, return None.
     """
+    client = create_socket(ip,port)
+    r = bytes(str('r'),'utf-8')
+    send(client, r)
 
-    create_socket(ip,port)
+    g = receive(client, 64)
+    N = receive(client, 64)
+
+    if isinstance(g, bytes):
+        g = bytes_to_int(g)
+    if isinstance(N, bytes):
+        N = bytes_to_int(N)
+    
+    x = calc_x(s, pw)
+    v = int(pow(g,x,N))
+
+    usrname = bytes(username,'utf-8')
+    send(client, s)
+    send(client, int_to_bytes(v,64))
+    send(client, int_to_bytes(len(usrname),1))
+    send(client, usrname)
+
+    time_out = time.time() + 10
+
+    while time.time() < time_out:
+        try:
+            client.connect(ip,port)
+        except:
+            return (g, N, v)
+    
+    client.close()
+    return None
+
 
 def server_register( sock:socket.socket, g:Union[int,bytes], N:Union[int,bytes], \
         database:dict ) -> Optional[dict]:
@@ -527,9 +584,34 @@ def server_register( sock:socket.socket, g:Union[int,bytes], N:Union[int,bytes],
        re-register with a different salt and/or password is likely malicious,
        and should therefore count as an unsuccessful registration.
     """
+    send(sock, int_to_bytes(g, 64))
+    send(sock, int_to_bytes(N, 64))
 
-    # delete this comment and insert your code here
+    client_salt = receive(sock, 16)
+    
+    client_v = receive(sock, 64)
+    client_v = bytes_to_int(client_v)
+    
+    usrname_len = receive(sock, 1)
+    usrname_len = bytes_to_int(usrname_len)
+    usrname = receive(sock, usrname_len)
+    usrname = usrname.decode('utf-8')
 
+    if usrname in database:
+        s_v = database.get(usrname)
+        if s_v[0] != client_salt or s_v[1] != client_v:
+            time_out = time.time() + 10
+            time.sleep(time_out)
+            sock.close()
+            return None
+        else:
+            sock.close()
+            return database
+    else:
+        sock.close()
+        database[usrname] = (client_salt, client_v)
+        return database
+  
 def client_protocol( ip:str, port:int, g:Union[int,bytes], N:Union[int,bytes], \
         username:str, pw:str, s:bytes ) -> Optional[tuple[int,int]]:
     """Register the given username with the server, from the client.
@@ -552,7 +634,60 @@ def client_protocol( ip:str, port:int, g:Union[int,bytes], N:Union[int,bytes], \
        K_client are integers. If not, return None.
     """
 
-    # delete this comment and insert your code here
+    client = create_socket(ip,port)
+    client.send(bytes(str('p'),'utf-8'))
+    
+    g_server = receive(client, 64)
+    N_server = receive(client, 64)
+
+    if type(g_server) is bytes:
+        g_server = bytes_to_int(g_server)
+    if type(N_server) is bytes:
+        N_server = bytes_to_int(N_server)
+
+    if type(g) is bytes:
+        g = bytes_to_int(g)
+    if type(N) is bytes:
+        N = bytes_to_int(N)
+    
+    x = calc_x(s,pw)
+    v = pow(g,x,N)
+
+    if g == g_server and N == N_server:
+        a = random.randrange(0, N - 1)
+        A = calc_A(g, N, a)
+
+        usrname = bytes(username,'utf-8')
+        send(client, int_to_bytes(A,64))
+        send(client, int_to_bytes(len(usrname),1))
+        send(client, usrname)
+
+        # server sends s and B where s is clients salt
+        server_salt = receive(client,16)
+        B = receive(client, 64)
+        
+        if server_salt == s:
+            u = calc_u(A,B)
+            k = hashlib.blake2b(int_to_bytes(g,64) + int_to_bytes(N,64), digest_size = 32).digest()
+        
+            K_client = calc_K_client(N,B,k,v,a,u,x)
+            bits = receive(client,1) 
+
+            #Y = find_Y(K_client,bits)      
+            Y = b'\x03'                     # hardcoded random byte value for testing
+            send(client, Y)
+        
+            M1 = receive(client,64)
+            M1_K_client = int_to_bytes(K_client,64)
+            M1_A = int_to_bytes(A, 64)
+            K_A_Y = bytes(M1_K_client + M1_A + Y)
+            client_M1 = hashlib.blake2b(K_A_Y ,digest_size = 32).digest()
+
+            if client_M1 == M1:
+                return (a,K_client)
+      
+        client.close()
+        return None
 
 def server_protocol( sock:socket.socket, g:Union[int,bytes], N:Union[int,bytes], \
         bits:int, database:dict ) -> Optional[tuple[str,int,int]]:
@@ -576,10 +711,55 @@ def server_protocol( sock:socket.socket, g:Union[int,bytes], N:Union[int,bytes],
     If successful, return a tuple of the form (username, b, K_server), where both b and 
        K_server are integers while username is a string. If not, return None.
     """
+   
+    if isinstance(g, int):
+        send_g = int_to_bytes(g, 64)
+    if isinstance(N, int):
+        send_N = int_to_bytes(N, 64)
+    send(sock,send_g)
+    send(sock,send_N)
 
-    # delete this comment and insert your code here
+    A = receive(sock,64)
+    usrname_len = receive(sock, 1)
+    usrname_len = bytes_to_int(usrname_len)
+    usrname = receive(sock, usrname_len)
+    usrname = usrname.decode('utf-8')
+    
+    s_v = database.get(usrname)
 
+    if s_v != None:
 
+        k = hashlib.blake2b( send_g + send_N , digest_size = 32).digest()
+        k = bytes_to_int(k)
+
+        b = random.randrange(0, N - 1)          # Server generates a random value b
+        B = calc_B(g,N,b,k,s_v[1])                   # computes B
+    
+        send (sock, s_v[0])
+        send (sock, int_to_bytes(B,64))
+
+        u = calc_u(A,B)                         # computes u
+        K_server = calc_K_server(N,A,b,s_v[1],u)     # Server computes Kserver
+    
+        send_bits = int_to_bytes(bits,1)             # The Server sends bits, a single byte representing a number.
+        send(sock,send_bits)                         # Server sends bits
+        Y = receive(sock,64)                    
+
+        K_server_Y = bytes_to_int(hashlib.blake2b(int_to_bytes(K_server, 64) + Y,digest_size=32).digest())
+
+        for i in range(0,bits+1):
+            if K_server_Y & i != 0:
+                sock.close()
+                return None
+
+        M1 = calc_M1(A,K_server,Y)
+        send(sock,M1)
+        sock.close()
+        return (usrname, b, K_server)
+    sock.close()
+    return None
+
+    
 ##### MAIN
 
 if __name__ == '__main__':
